@@ -41,9 +41,79 @@
   - ex) http://EC2_public_ip:8080/
 
 #### 4-1. 파이프라인 생성
-- new item을 누른 후 
+- [해당 블로그 포스팅을 이용해서 파이프 라인 생성 등을 직접 해주세요](https://narup.tistory.com/224)
+
+#### 4-2. 젠킨스를 이용한 자동 빌드에 사용한 파이프라인 스크립트
+```
+pipeline {
+    agent any
+
+    stages {
+        stage('git') {
+            steps {
+                git branch: 'main', 
+                credentialsId: '발급받은credentialsId',
+                url: '본인깃허브주소'
+            }
+        }
+        stage('Build'){
+            steps{
+                
+                sh '''./gradlew clean build '''
+                
+            }
+            
+        }
+    }
+}
+```
+- `sh ''' '''`를 사용하면 쉘스크립트 명령어를 사용할 수 있게 해줍니다.
+  - 젠킨스 내에서 해당 파이프라인을 지금 빌드를 누르게 될때마다 위의 clean 후 build 작업이 진행되게 됩니다.
+
+## EC2 프리티어를 사용해서 젠킨스를 이용한 빌드 작업이 먹통일 땐?
+#### 1. 주의
+
+사용 중인 EC2 종류에 따라서 스왑 공간도 다르게 부여해준다. 이를 살펴보고 진행하자!
+
+#### 2. 스왑 공간 생성 전 상태 확인
+![image](https://github.com/yeomyaloo/jenkins-auto-build/assets/81970382/12f58071-cb71-46c2-ada8-70410138f44c)
+- `free -h`
+
+#### 3. dd 명령어로 루트 경로에 스왑 파일 생성
+
+`sudo dd if=/dev/zero of=/swapfile bs=128M count=16` 
+
+> - bs : 블록의 크기
+> - count : 블록 수
+> - 스왑 파일의 크기 = 블록의 크기 * 블록의 수
+> - 즉, 128M * 16 = 2GB이라서 위와 같이 입력한다. 스왑 파일의 크기가 2GB가 되는 것이다.
 
 
+#### 4. 스왑 파일 읽기 및 쓰기 권한 업데이트 작업
+![image](https://github.com/yeomyaloo/jenkins-auto-build/assets/81970382/eca1470c-3216-483b-8ad6-9e3d634fafe1)
+- 해당 스왑 파일은 최상단 경로에 생성 된다.
+- 해당 최상단 경로로 가서 디렉토리 확인을 하면 swapfile이 생기는 것을 확인 할수 있다.
+    - `cd /`
+    - `ls`
+- `sudo chmod 600 /swapfile` 스왑 파일의 읽기 및 쓰기 권한 업데이트
+![image](https://github.com/yeomyaloo/jenkins-auto-build/assets/81970382/01288b08-08f9-4a2e-aaf5-e08835aeeb5d)
 
+#### 5. 스왑 영역을 위해 만든 파일로 설정
+- `sudo mkswap /swapfile`
 
+#### 6. 프로시저가 성공적인지 확인
+- `sudo swapon -s`
+![image](https://github.com/yeomyaloo/jenkins-auto-build/assets/81970382/5f483045-dd0f-42c2-bbda-cee26f2e24ca)
+
+### 7. /etc/fstab 파일을 편집 후 부팅 시 스왑 파일이 시작되게 설정
+- `sudo vi /etc/fstab`
+    - `/swapfile swap swap defaults 0 0` : 텍스트 편집 시 `i` 혹은 `insert` 키를 누른 뒤 문구를 넣을 수 있게 하고 해당 문구 넣고 저장!
+    - Esc → :wq! → Enter
+![image](https://github.com/yeomyaloo/jenkins-auto-build/assets/81970382/988b5b4d-efc7-4258-997c-692ec74007fa)
+
+#### 8. 스왑공간이 할당되었는지 확인하기
+![image](https://github.com/yeomyaloo/jenkins-auto-build/assets/81970382/8270733b-6966-457d-9a06-579fc5943719)
+
+- `free -h`
+- 2G로 할당되었음을 확인할 수 있다.
   
